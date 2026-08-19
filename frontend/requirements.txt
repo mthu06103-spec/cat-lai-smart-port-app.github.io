@@ -1,0 +1,17 @@
+# Frontend Requirements
+# Streamlit Dashboard - Cảng Container Cát Lái
+
+streamlit==1.28.1
+plotly==5.18.0
+pandas==2.1.1
+numpy==1.24.3
+
+# API Communication
+requests==2.31.0
+
+# Utilities
+python-dotenv==1.0.0
+pytz==2023.3
+
+# Optional: Advanced visualizations
+kaleido==0.2.1  # For static image export from Plotly

@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # ===================================
+  # Backend FastAPI Service
+  # ===================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cat-lai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - ENVIRONMENT=development
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - RANDOM_SEED=42
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+    volumes:
+      - ./backend:/app/backend
+    command: python main.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - port-network
+    restart: unless-stopped
+
+  # ===================================
+  # Frontend Streamlit Service
+  # ===================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cat-lai-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://backend:8000
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_LOGGER_LEVEL=info
+    volumes:
+      - ./frontend:/app/frontend
+    depends_on:
+      - backend
+    command: streamlit run app.py --server.address=0.0.0.0 --server.port=8501
+    networks:
+      - port-network
+    restart: unless-stopped
+
+  # ===================================
+  # Data Science Analysis Service
+  # ===================================
+  data-science:
+    build:
+      context: ./data_science
+      dockerfile: Dockerfile
+    container_name: cat-lai-data-science
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data_science:/app/data_science
+      - ./data_science/output:/app/data_science/output
+    command: python telemetry_analyzer.py
+    networks:
+      - port-network
+    restart: unless-stopped
+
+  # ===================================
+  # PostgreSQL Database (Optional)
+  # ===================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: cat-lai-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=cat_lai_port
+      - POSTGRES_USER=portadmin
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-portpassword123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portadmin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - port-network
+    restart: unless-stopped
+
+  # ===================================
+  # Redis Cache (Optional)
+  # ===================================
+  redis:
+    image: redis:7-alpine
+    container_name: cat-lai-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - port-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  port-network:
+    driver: bridge
